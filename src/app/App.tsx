@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Mail, Phone, Linkedin, Github, MapPin, ExternalLink, Award, ChevronDown, ChevronUp } from "lucide-react";
 
 const NAV_ITEMS = ["About", "Experience", "Projects", "Certifications"];
@@ -10,7 +10,35 @@ const SKILLS = [
   "SSR", "Coveo", "Adobe Analytics", "CI/CD", "Repository Restructuring",
 ];
 
-const EXPERIENCE = [
+// --- Types ---
+
+interface SubRole {
+  period: string;
+  role: string;
+  client: string;
+  highlights: string[];
+}
+
+interface SimpleJob {
+  period: string;
+  role: string;
+  company: string;
+  isPromotion?: false;
+  highlights: string[];
+}
+
+interface PromotionJob {
+  period: string;
+  company: string;
+  isPromotion: true;
+  roles: SubRole[]; // ordered newest → oldest
+}
+
+type Job = SimpleJob | PromotionJob;
+
+// --- Data ---
+
+const EXPERIENCE: Job[] = [
   {
     period: "Jul 2025 — Present",
     role: "Senior Software Engineer",
@@ -33,10 +61,8 @@ const EXPERIENCE = [
   },
   {
     period: "Jan 2022 — May 2024",
-    role: "Systems Engineer",
     company: "Infosys",
-    transition: true,
-    highlights: [],
+    isPromotion: true,
     roles: [
       {
         period: "Nov 2023 — May 2024",
@@ -98,6 +124,10 @@ const CERTS = [
   { level: "CERT", title: "Java SE 8 Developer", issuer: "Infosys Certified" },
 ];
 
+const NAVBAR_HEIGHT = 56;
+
+// --- Components ---
+
 function NavBar({ active, onNav }: { active: string; onNav: (s: string) => void }) {
   const [open, setOpen] = useState(false);
   return (
@@ -106,7 +136,6 @@ function NavBar({ active, onNav }: { active: string; onNav: (s: string) => void 
         <span className="font-mono text-xs tracking-[0.2em] text-muted-foreground uppercase">
           rohith<span className="text-primary">.</span>venati
         </span>
-        {/* desktop */}
         <div className="hidden md:flex items-center gap-8">
           {NAV_ITEMS.map((item) => (
             <button
@@ -126,7 +155,6 @@ function NavBar({ active, onNav }: { active: string; onNav: (s: string) => void 
             Contact
           </a>
         </div>
-        {/* mobile toggle */}
         <button className="md:hidden text-foreground" onClick={() => setOpen(!open)}>
           {open ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
@@ -194,15 +222,15 @@ function Hero() {
             </span>
           </div>
         </div>
-        {/* stat block */}
+        {/* stat block — fixed cell widths so labels never overflow */}
         <div className="grid grid-cols-2 gap-px bg-border border border-border self-end">
           {[
             { val: "4+", label: "Years" },
             { val: "3", label: "Companies" },
-            { val: "35%", label: "Incident reduction" },
-            { val: "6", label: "Adobe certs" },
+            { val: "35%", label: "Incidents" },
+            { val: "6", label: "Certs" },
           ].map(({ val, label }) => (
-            <div key={label} className="bg-card px-6 py-5 text-center">
+            <div key={label} className="bg-card w-28 py-5 text-center">
               <div className="font-black text-primary text-2xl" style={{ fontFamily: "'Archivo Black', sans-serif" }}>{val}</div>
               <div className="font-mono text-xs text-muted-foreground mt-1 tracking-widest uppercase">{label}</div>
             </div>
@@ -232,72 +260,83 @@ function About() {
 }
 
 function Experience() {
-  const [expanded, setExpanded] = useState<number | null>(0);
+  // null = all collapsed on load (fixes chevron mismatch)
+  const [expanded, setExpanded] = useState<number | null>(null);
+
   return (
     <section id="Experience" className="py-16 px-6 max-w-6xl mx-auto border-t border-border">
       <SectionLabel>02 / Experience</SectionLabel>
       <div className="divide-y divide-border">
-        {EXPERIENCE.map((job: any, i: number) => (
-          <div key={i} className="group">
-            <button
-              className="w-full py-6 flex items-start md:items-center justify-between gap-4 text-left"
-              onClick={() => setExpanded(expanded === i ? null : i)}
-            >
-              <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-8 flex-1">
-                <span className="font-mono text-xs text-muted-foreground w-44 shrink-0">{job.period}</span>
-                <div>
-                  <span className="text-foreground font-medium" style={{ fontFamily: "'Archivo', sans-serif" }}>
-                    {job.transition ? `${job.roles[1].role} → ${job.roles[0].role}` : job.role}
-                  </span>
-                  <span className="text-muted-foreground mx-2 hidden md:inline">—</span>
-                  <span className="font-mono text-xs text-primary block md:inline mt-0.5 md:mt-0">{job.company}</span>
-                </div>
-              </div>
-              <span className="text-muted-foreground group-hover:text-primary transition-colors shrink-0">
-                {expanded === i ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-              </span>
-            </button>
+        {EXPERIENCE.map((job, i) => {
+          const isOpen = expanded === i;
+          const isPromo = job.isPromotion === true;
+          const headerLabel = isPromo
+            ? `${job.roles[1].role} → ${job.roles[0].role}`
+            : (job as SimpleJob).role;
 
-            {expanded === i && !job.transition && (
-              <ul className="pb-6 pl-0 md:pl-52 space-y-2">
-                {job.highlights.map((h: string, j: number) => (
-                  <li key={j} className="flex items-start gap-3 font-mono text-xs text-muted-foreground">
-                    <span className="text-primary mt-0.5 shrink-0">→</span>
-                    {h}
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {expanded === i && job.transition && (
-              <div className="pb-6 pl-0 md:pl-52 space-y-5">
-                {job.roles.map((r: any, j: number) => (
-                  <div key={j} className="relative pl-5 border-l border-border">
-                    {/* promotion badge on first role */}
-                    <div className="flex flex-wrap items-center gap-3 mb-2">
-                      <span className="font-mono text-xs text-foreground font-medium">{r.role}</span>
-                      {j === 0 && (
-                        <span className="font-mono text-[10px] tracking-widest uppercase px-2 py-0.5 border border-primary text-primary">
-                          Promoted
-                        </span>
-                      )}
-                      <span className="font-mono text-[10px] text-muted-foreground">{r.period}</span>
-                      <span className="font-mono text-[10px] text-primary">· {r.client}</span>
-                    </div>
-                    <ul className="space-y-1.5">
-                      {r.highlights.map((h: string, k: number) => (
-                        <li key={k} className="flex items-start gap-3 font-mono text-xs text-muted-foreground">
-                          <span className="text-primary mt-0.5 shrink-0">→</span>
-                          {h}
-                        </li>
-                      ))}
-                    </ul>
+          return (
+            <div key={i} className="group">
+              <button
+                className="w-full py-6 flex items-start md:items-center justify-between gap-4 text-left"
+                onClick={() => setExpanded(isOpen ? null : i)}
+                aria-expanded={isOpen}
+              >
+                <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-8 flex-1">
+                  <span className="font-mono text-xs text-muted-foreground w-44 shrink-0">{job.period}</span>
+                  <div>
+                    <span className="text-foreground font-medium" style={{ fontFamily: "'Archivo', sans-serif" }}>
+                      {headerLabel}
+                    </span>
+                    <span className="text-muted-foreground mx-2 hidden md:inline">—</span>
+                    <span className="font-mono text-xs text-primary block md:inline mt-0.5 md:mt-0">{job.company}</span>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
+                </div>
+                <span className="text-muted-foreground group-hover:text-primary transition-colors shrink-0">
+                  {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </span>
+              </button>
+
+              {isOpen && !isPromo && (
+                <ul className="pb-6 pl-0 md:pl-52 space-y-2">
+                  {(job as SimpleJob).highlights.map((h, j) => (
+                    <li key={j} className="flex items-start gap-3 font-mono text-xs text-muted-foreground">
+                      <span className="text-primary mt-0.5 shrink-0">→</span>
+                      {h}
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {isOpen && isPromo && (
+                <div className="pb-6 pl-0 md:pl-52 space-y-6">
+                  {job.roles.map((r, j) => (
+                    <div key={j} className="relative pl-5 border-l border-border">
+                      <div className="flex flex-wrap items-center gap-3 mb-2">
+                        <span className="font-mono text-xs text-foreground font-medium">{r.role}</span>
+                        {/* Promoted badge only on the newer (index 0) role */}
+                        {j === 0 && (
+                          <span className="font-mono text-[10px] tracking-widest uppercase px-2 py-0.5 border border-primary text-primary">
+                            Promoted
+                          </span>
+                        )}
+                        <span className="font-mono text-[10px] text-muted-foreground">{r.period}</span>
+                        <span className="font-mono text-[10px] text-primary">· {r.client}</span>
+                      </div>
+                      <ul className="space-y-1.5">
+                        {r.highlights.map((h, k) => (
+                          <li key={k} className="flex items-start gap-3 font-mono text-xs text-muted-foreground">
+                            <span className="text-primary mt-0.5 shrink-0">→</span>
+                            {h}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </section>
   );
@@ -399,9 +438,7 @@ function Footer() {
   return (
     <footer className="border-t border-border py-10 px-6">
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-        <span className="font-mono text-xs text-muted-foreground">
-          © 2025 Rohith Venati
-        </span>
+        <span className="font-mono text-xs text-muted-foreground">© 2025 Rohith Venati</span>
         <div className="flex items-center gap-6">
           <a href="mailto:rohithv16@gmail.com" className="font-mono text-xs text-muted-foreground hover:text-primary transition-colors">
             rohithv16@gmail.com
@@ -420,10 +457,41 @@ function Footer() {
 
 export default function App() {
   const [active, setActive] = useState("About");
+  const scrollingTo = useRef<string | null>(null);
+
+  // Scroll spy — updates active nav based on scroll position
+  useEffect(() => {
+    const handler = () => {
+      // Suppress spy while a programmatic scroll is in flight
+      if (scrollingTo.current) return;
+
+      const offset = NAVBAR_HEIGHT + 32;
+      for (const id of [...NAV_ITEMS].reverse()) {
+        const el = document.getElementById(id);
+        if (el && el.getBoundingClientRect().top <= offset) {
+          setActive(id);
+          return;
+        }
+      }
+      setActive("About");
+    };
+
+    window.addEventListener("scroll", handler, { passive: true });
+    return () => window.removeEventListener("scroll", handler);
+  }, []);
 
   const scrollTo = (id: string) => {
     setActive(id);
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    scrollingTo.current = id;
+
+    const el = document.getElementById(id);
+    if (el) {
+      const top = el.getBoundingClientRect().top + window.scrollY - NAVBAR_HEIGHT - 16;
+      window.scrollTo({ top, behavior: "smooth" });
+    }
+
+    // Clear the lock after the smooth scroll settles (~700ms)
+    setTimeout(() => { scrollingTo.current = null; }, 700);
   };
 
   return (
