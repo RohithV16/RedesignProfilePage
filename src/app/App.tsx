@@ -32,23 +32,32 @@ const EXPERIENCE = [
     ],
   },
   {
-    period: "Nov 2023 — May 2024",
-    role: "Senior Systems Engineer",
-    company: "Infosys — Auckland Council",
-    highlights: [
-      "Coveo enterprise search integration with custom sitemaps",
-      "Server-side rendering implementation",
-      "Windcave payment gateway integration in AEM forms",
-    ],
-  },
-  {
-    period: "Jan 2022 — Nov 2023",
+    period: "Jan 2022 — May 2024",
     role: "Systems Engineer",
-    company: "Infosys — Telenet",
-    highlights: [
-      "AEM core & custom component development with Sling Models",
-      "JUnit test coverage and code review leadership",
-      "Cut production incidents by 35% through mentoring and standards enforcement",
+    company: "Infosys",
+    transition: true,
+    highlights: [],
+    roles: [
+      {
+        period: "Nov 2023 — May 2024",
+        role: "Senior Systems Engineer",
+        client: "Auckland Council",
+        highlights: [
+          "Coveo enterprise search integration with custom sitemaps",
+          "Server-side rendering implementation",
+          "Windcave payment gateway integration in AEM forms",
+        ],
+      },
+      {
+        period: "Jan 2022 — Nov 2023",
+        role: "Systems Engineer",
+        client: "Telenet",
+        highlights: [
+          "AEM core & custom component development with Sling Models",
+          "JUnit test coverage and code review leadership",
+          "Cut production incidents by 35% through mentoring and standards enforcement",
+        ],
+      },
     ],
   },
 ];
@@ -228,7 +237,7 @@ function Experience() {
     <section id="Experience" className="py-16 px-6 max-w-6xl mx-auto border-t border-border">
       <SectionLabel>02 / Experience</SectionLabel>
       <div className="divide-y divide-border">
-        {EXPERIENCE.map((job, i) => (
+        {EXPERIENCE.map((job: any, i: number) => (
           <div key={i} className="group">
             <button
               className="w-full py-6 flex items-start md:items-center justify-between gap-4 text-left"
@@ -238,7 +247,7 @@ function Experience() {
                 <span className="font-mono text-xs text-muted-foreground w-44 shrink-0">{job.period}</span>
                 <div>
                   <span className="text-foreground font-medium" style={{ fontFamily: "'Archivo', sans-serif" }}>
-                    {job.role}
+                    {job.transition ? `${job.roles[1].role} → ${job.roles[0].role}` : job.role}
                   </span>
                   <span className="text-muted-foreground mx-2 hidden md:inline">—</span>
                   <span className="font-mono text-xs text-primary block md:inline mt-0.5 md:mt-0">{job.company}</span>
@@ -248,15 +257,44 @@ function Experience() {
                 {expanded === i ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
               </span>
             </button>
-            {expanded === i && (
+
+            {expanded === i && !job.transition && (
               <ul className="pb-6 pl-0 md:pl-52 space-y-2">
-                {job.highlights.map((h, j) => (
+                {job.highlights.map((h: string, j: number) => (
                   <li key={j} className="flex items-start gap-3 font-mono text-xs text-muted-foreground">
                     <span className="text-primary mt-0.5 shrink-0">→</span>
                     {h}
                   </li>
                 ))}
               </ul>
+            )}
+
+            {expanded === i && job.transition && (
+              <div className="pb-6 pl-0 md:pl-52 space-y-5">
+                {job.roles.map((r: any, j: number) => (
+                  <div key={j} className="relative pl-5 border-l border-border">
+                    {/* promotion badge on first role */}
+                    <div className="flex flex-wrap items-center gap-3 mb-2">
+                      <span className="font-mono text-xs text-foreground font-medium">{r.role}</span>
+                      {j === 0 && (
+                        <span className="font-mono text-[10px] tracking-widest uppercase px-2 py-0.5 border border-primary text-primary">
+                          Promoted
+                        </span>
+                      )}
+                      <span className="font-mono text-[10px] text-muted-foreground">{r.period}</span>
+                      <span className="font-mono text-[10px] text-primary">· {r.client}</span>
+                    </div>
+                    <ul className="space-y-1.5">
+                      {r.highlights.map((h: string, k: number) => (
+                        <li key={k} className="flex items-start gap-3 font-mono text-xs text-muted-foreground">
+                          <span className="text-primary mt-0.5 shrink-0">→</span>
+                          {h}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         ))}
