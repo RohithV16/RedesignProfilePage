@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { Mail, Phone, Linkedin, Github, MapPin, ExternalLink, Award, ChevronDown, ChevronUp } from "lucide-react";
+import { motion, AnimatePresence, useInView, useMotionValue, useTransform, animate } from "motion/react";
+import { Mail, Phone, Linkedin, Github, MapPin, ExternalLink, Award, ChevronDown, ChevronUp, Menu, X } from "lucide-react";
 
 const NAV_ITEMS = ["About", "Experience", "Projects", "Certifications"];
 
@@ -31,7 +32,7 @@ interface PromotionJob {
   period: string;
   company: string;
   isPromotion: true;
-  roles: SubRole[]; // ordered newest → oldest
+  roles: SubRole[];
 }
 
 type Job = SimpleJob | PromotionJob;
@@ -126,250 +127,530 @@ const CERTS = [
 
 const NAVBAR_HEIGHT = 56;
 
-// --- Components ---
+// --- Animation variants ---
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 28 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] } },
+};
+
+const staggerContainer = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.08 } },
+};
+
+const tagVariant = {
+  hidden: { opacity: 0, scale: 0.82 },
+  visible: { opacity: 1, scale: 1, transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1] } },
+};
+
+// --- Hooks ---
+
+function useScrollInView(threshold = 0.15) {
+  const ref = useRef<HTMLElement>(null);
+  const isInView = useInView(ref, { once: true, amount: threshold });
+  return { ref, isInView };
+}
+
+// Animated counter hook
+function useCounter(target: number, inView: boolean, duration = 1.4) {
+  const motionVal = useMotionValue(0);
+  const rounded = useTransform(motionVal, (v) => {
+    if (target === 35) return `${Math.round(v)}%`;
+    if (target === 4) return v >= 4 ? "4+" : Math.round(v).toString();
+    return Math.round(v).toString();
+  });
+
+  useEffect(() => {
+    if (!inView) return;
+    const controls = animate(motionVal, target, { duration, ease: "easeOut" });
+    return controls.stop;
+  }, [inView, target, duration, motionVal]);
+
+  return rounded;
+}
+
+// --- NavBar with sliding indicator ---
 
 function NavBar({ active, onNav }: { active: string; onNav: (s: string) => void }) {
   const [open, setOpen] = useState(false);
+  const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 });
+  const navRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  useEffect(() => {
+    const el = navRefs.current[active];
+    if (el) {
+      const parent = el.parentElement!.getBoundingClientRect();
+      const rect = el.getBoundingClientRect();
+      setIndicatorStyle({ left: rect.left - parent.left, width: rect.width });
+    }
+  }, [active]);
+
+  useEffect(() => {
+    const handler = () => { if (window.innerWidth >= 768) setOpen(false); };
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-background border-b border-border">
-      <div className="max-w-6xl mx-auto px-6 flex items-center justify-between h-14">
-        <span className="font-mono text-xs tracking-[0.2em] text-muted-foreground uppercase">
-          rohith<span className="text-primary">.</span>venati
-        </span>
-        <div className="hidden md:flex items-center gap-8">
-          {NAV_ITEMS.map((item) => (
-            <button
-              key={item}
-              onClick={() => onNav(item)}
-              className={`font-mono text-xs tracking-[0.15em] uppercase transition-colors duration-150 ${
-                active === item ? "text-primary" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {item}
-            </button>
-          ))}
-          <a
-            href="mailto:rohithv16@gmail.com"
-            className="font-mono text-xs tracking-[0.15em] uppercase bg-primary text-primary-foreground px-4 py-2 hover:opacity-80 transition-opacity"
+    <>
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-background border-b border-border">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-14">
+          <motion.span
+            initial={{ opacity: 0, x: -16 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+            className="font-mono text-xs tracking-[0.2em] text-muted-foreground uppercase"
           >
-            Contact
-          </a>
-        </div>
-        <button className="md:hidden text-foreground" onClick={() => setOpen(!open)}>
-          {open ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-        </button>
-      </div>
-      {open && (
-        <div className="md:hidden border-t border-border bg-background px-6 py-4 flex flex-col gap-4">
-          {NAV_ITEMS.map((item) => (
-            <button
-              key={item}
-              onClick={() => { onNav(item); setOpen(false); }}
-              className="font-mono text-xs tracking-[0.15em] uppercase text-left text-muted-foreground hover:text-foreground"
+            rohith<span className="text-primary">.</span>venati
+          </motion.span>
+
+          {/* Desktop nav */}
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
+            className="hidden md:flex items-center gap-6 lg:gap-8 relative"
+          >
+            {/* Sliding underline indicator */}
+            <motion.div
+              className="absolute bottom-[-1px] h-[2px] bg-primary"
+              animate={{ left: indicatorStyle.left, width: indicatorStyle.width }}
+              transition={{ type: "spring", stiffness: 380, damping: 32 }}
+            />
+
+            {NAV_ITEMS.map((item) => (
+              <button
+                key={item}
+                ref={(el) => { navRefs.current[item] = el; }}
+                onClick={() => onNav(item)}
+                className={`font-mono text-xs tracking-[0.15em] uppercase transition-colors duration-150 pb-1 ${
+                  active === item ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {item}
+              </button>
+            ))}
+            <a
+              href="mailto:rohithv16@gmail.com"
+              className="font-mono text-xs tracking-[0.15em] uppercase bg-primary text-primary-foreground px-4 py-2 hover:opacity-80 transition-opacity whitespace-nowrap"
             >
-              {item}
-            </button>
-          ))}
+              Contact
+            </a>
+          </motion.div>
+
+          <button
+            className="md:hidden text-foreground p-1 -mr-1"
+            onClick={() => setOpen(!open)}
+            aria-label="Toggle menu"
+          >
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.span
+                key={open ? "close" : "open"}
+                initial={{ opacity: 0, rotate: -90 }}
+                animate={{ opacity: 1, rotate: 0 }}
+                exit={{ opacity: 0, rotate: 90 }}
+                transition={{ duration: 0.18 }}
+              >
+                {open ? <X size={20} /> : <Menu size={20} />}
+              </motion.span>
+            </AnimatePresence>
+          </button>
         </div>
-      )}
-    </nav>
+      </nav>
+
+      {/* Mobile drawer */}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+            className="fixed inset-0 z-40 bg-background flex flex-col pt-14"
+          >
+            <div className="flex flex-col gap-1 px-6 py-8">
+              {NAV_ITEMS.map((item, i) => (
+                <motion.button
+                  key={item}
+                  initial={{ opacity: 0, x: -16 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.06, duration: 0.3, ease: "easeOut" }}
+                  onClick={() => { onNav(item); setOpen(false); }}
+                  className={`font-mono text-sm tracking-[0.15em] uppercase text-left py-4 border-b border-border transition-colors ${
+                    active === item ? "text-primary" : "text-muted-foreground"
+                  }`}
+                >
+                  {item}
+                </motion.button>
+              ))}
+              <motion.a
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.28, duration: 0.3 }}
+                href="mailto:rohithv16@gmail.com"
+                onClick={() => setOpen(false)}
+                className="font-mono text-sm tracking-[0.15em] uppercase bg-primary text-primary-foreground px-5 py-4 mt-6 text-center hover:opacity-80 transition-opacity"
+              >
+                Contact
+              </motion.a>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
+// --- Section label ---
+
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-4 mb-10">
-      <span className="font-mono text-xs tracking-[0.25em] uppercase text-primary">{children}</span>
+    <div className="flex items-center gap-4 mb-8 sm:mb-10">
+      <span className="font-mono text-xs tracking-[0.25em] uppercase text-primary whitespace-nowrap">{children}</span>
       <div className="flex-1 h-px bg-border" />
     </div>
   );
 }
 
-function Hero() {
+// --- Scroll section wrapper ---
+
+function ScrollSection({ id, className, children }: { id?: string; className?: string; children: React.ReactNode }) {
+  const { ref, isInView } = useScrollInView();
   return (
-    <section id="hero" className="pt-32 pb-20 px-6 max-w-6xl mx-auto">
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-10 items-end">
-        <div>
-          <p className="font-mono text-xs tracking-[0.3em] uppercase text-muted-foreground mb-4">
-            Senior AEM Developer — Adobe Certified Master
-          </p>
-          <h1
-            className="font-black text-foreground leading-none tracking-tight mb-6"
-            style={{ fontFamily: "'Archivo Black', sans-serif", fontSize: "clamp(3rem, 10vw, 7rem)" }}
-          >
-            Rohith<br />
-            <span className="text-primary">Venati</span>
-          </h1>
-          <p className="text-muted-foreground max-w-xl leading-relaxed" style={{ fontFamily: "'Archivo', sans-serif" }}>
-            Four years building enterprise content management systems at Adobe, Merkle, and Infosys.
-            Specializing in AEMaaCS architecture, cloud migration, and performance-critical backend engineering.
-          </p>
-          <div className="flex flex-wrap items-center gap-6 mt-8">
-            <a href="mailto:rohithv16@gmail.com" className="flex items-center gap-2 font-mono text-xs text-muted-foreground hover:text-primary transition-colors">
-              <Mail size={14} /> rohithv16@gmail.com
-            </a>
-            <a href="tel:+916300331842" className="flex items-center gap-2 font-mono text-xs text-muted-foreground hover:text-primary transition-colors">
-              <Phone size={14} /> +91 63003 31842
-            </a>
-            <a href="https://linkedin.com/in/rohithvenati1605" target="_blank" rel="noreferrer" className="flex items-center gap-2 font-mono text-xs text-muted-foreground hover:text-primary transition-colors">
-              <Linkedin size={14} /> LinkedIn
-            </a>
-            <a href="https://github.com/RohithV16" target="_blank" rel="noreferrer" className="flex items-center gap-2 font-mono text-xs text-muted-foreground hover:text-primary transition-colors">
-              <Github size={14} /> GitHub
-            </a>
-            <span className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
-              <MapPin size={14} /> Chennai, India
-            </span>
-          </div>
-        </div>
-        {/* stat block — fixed cell widths so labels never overflow */}
-        <div className="grid grid-cols-2 gap-px bg-border border border-border self-end">
+    <motion.section
+      id={id}
+      ref={ref}
+      variants={fadeUp}
+      initial="hidden"
+      animate={isInView ? "visible" : "hidden"}
+      className={className}
+    >
+      {children}
+    </motion.section>
+  );
+}
+
+// --- Stat counter cell ---
+
+function StatCell({ val, label, inView }: { val: string; label: string; inView: boolean }) {
+  const numeric = parseInt(val.replace(/\D/g, ""), 10);
+  const counted = useCounter(numeric, inView);
+
+  return (
+    <div className="bg-card flex-1 md:w-28 py-4 sm:py-5 text-center">
+      <motion.div
+        className="font-black text-primary text-xl sm:text-2xl tabular-nums"
+        style={{ fontFamily: "'Archivo Black', sans-serif" }}
+      >
+        {counted}
+      </motion.div>
+      <div className="font-mono text-[9px] sm:text-xs text-muted-foreground mt-1 tracking-widest uppercase">
+        {label}
+      </div>
+    </div>
+  );
+}
+
+// --- Hero ---
+
+function Hero() {
+  const statsRef = useRef<HTMLDivElement>(null);
+  const statsInView = useInView(statsRef, { once: true, amount: 0.5 });
+
+  const heroItems = [
+    { delay: 0, el: (
+      <motion.p
+        key="eyebrow"
+        variants={fadeUp}
+        className="font-mono text-[10px] sm:text-xs tracking-[0.25em] sm:tracking-[0.3em] uppercase text-muted-foreground mb-3 sm:mb-4"
+      >
+        Senior AEM Developer — Adobe Certified Master
+      </motion.p>
+    )},
+    { delay: 0.1, el: (
+      <motion.h1
+        key="name"
+        variants={fadeUp}
+        className="font-black text-foreground leading-none tracking-tight mb-4 sm:mb-6"
+        style={{ fontFamily: "'Archivo Black', sans-serif", fontSize: "clamp(2.6rem, 12vw, 7rem)" }}
+      >
+        Rohith<br />
+        <span className="text-primary">Venati</span>
+      </motion.h1>
+    )},
+    { delay: 0.18, el: (
+      <motion.p
+        key="bio"
+        variants={fadeUp}
+        className="text-muted-foreground max-w-xl leading-relaxed text-sm sm:text-base"
+        style={{ fontFamily: "'Archivo', sans-serif" }}
+      >
+        Four years building enterprise content management systems at Adobe, Merkle, and Infosys.
+        Specializing in AEMaaCS architecture, cloud migration, and performance-critical backend engineering.
+      </motion.p>
+    )},
+    { delay: 0.26, el: (
+      <motion.div
+        key="links"
+        variants={fadeUp}
+        className="flex flex-wrap items-center gap-x-5 gap-y-3 mt-6 sm:mt-8"
+      >
+        <a href="mailto:rohithv16@gmail.com" className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-primary transition-colors">
+          <Mail size={13} /> rohithv16@gmail.com
+        </a>
+        <a href="tel:+916300331842" className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-primary transition-colors">
+          <Phone size={13} /> +91 63003 31842
+        </a>
+        <a href="https://linkedin.com/in/rohithvenati1605" target="_blank" rel="noreferrer" className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-primary transition-colors">
+          <Linkedin size={13} /> LinkedIn
+        </a>
+        <a href="https://github.com/RohithV16" target="_blank" rel="noreferrer" className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-primary transition-colors">
+          <Github size={13} /> GitHub
+        </a>
+        <span className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
+          <MapPin size={13} /> Chennai, India
+        </span>
+      </motion.div>
+    )},
+  ];
+
+  return (
+    <section id="hero" className="pt-24 sm:pt-28 md:pt-32 pb-12 sm:pb-16 md:pb-20 px-4 sm:px-6 max-w-6xl mx-auto">
+      <div className="flex flex-col md:grid md:grid-cols-[1fr_auto] gap-8 md:gap-10 md:items-end">
+        <motion.div
+          variants={staggerContainer}
+          initial="hidden"
+          animate="visible"
+        >
+          {heroItems.map(({ el }) => el)}
+        </motion.div>
+
+        {/* Stat grid */}
+        <motion.div
+          ref={statsRef}
+          initial={{ opacity: 0, y: 24 }}
+          animate={statsInView ? { opacity: 1, y: 0 } : {}}
+          transition={{ duration: 0.55, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
+          className="grid grid-cols-4 md:grid-cols-2 gap-px bg-border border border-border w-full md:w-auto md:self-end"
+        >
           {[
             { val: "4+", label: "Years" },
             { val: "3", label: "Companies" },
             { val: "35%", label: "Incidents" },
             { val: "6", label: "Certs" },
           ].map(({ val, label }) => (
-            <div key={label} className="bg-card w-28 py-5 text-center">
-              <div className="font-black text-primary text-2xl" style={{ fontFamily: "'Archivo Black', sans-serif" }}>{val}</div>
-              <div className="font-mono text-xs text-muted-foreground mt-1 tracking-widest uppercase">{label}</div>
-            </div>
+            <StatCell key={label} val={val} label={label} inView={statsInView} />
           ))}
-        </div>
+        </motion.div>
       </div>
     </section>
   );
 }
+
+// --- Skills ---
 
 function About() {
+  const { ref, isInView } = useScrollInView(0.1);
+
   return (
-    <section id="About" className="py-16 px-6 max-w-6xl mx-auto border-t border-border">
+    <motion.section
+      id="About"
+      ref={ref}
+      initial="hidden"
+      animate={isInView ? "visible" : "hidden"}
+      variants={fadeUp}
+      className="py-12 sm:py-16 px-4 sm:px-6 max-w-6xl mx-auto border-t border-border"
+    >
       <SectionLabel>01 / Skills</SectionLabel>
-      <div className="flex flex-wrap gap-2">
+      <motion.div
+        variants={staggerContainer}
+        initial="hidden"
+        animate={isInView ? "visible" : "hidden"}
+        className="flex flex-wrap gap-2"
+      >
         {SKILLS.map((skill) => (
-          <span
+          <motion.span
             key={skill}
-            className="font-mono text-xs px-3 py-1.5 border border-border text-muted-foreground hover:border-primary hover:text-primary transition-colors cursor-default"
+            variants={tagVariant}
+            whileHover={{ scale: 1.06, borderColor: "var(--primary)", color: "var(--primary)" }}
+            className="font-mono text-[11px] sm:text-xs px-2.5 sm:px-3 py-1 sm:py-1.5 border border-border text-muted-foreground cursor-default"
+            style={{ display: "inline-block" }}
           >
             {skill}
-          </span>
+          </motion.span>
         ))}
-      </div>
-    </section>
+      </motion.div>
+    </motion.section>
   );
 }
 
+// --- Experience ---
+
 function Experience() {
-  // null = all collapsed on load (fixes chevron mismatch)
   const [expanded, setExpanded] = useState<number | null>(null);
+  const { ref, isInView } = useScrollInView(0.1);
 
   return (
-    <section id="Experience" className="py-16 px-6 max-w-6xl mx-auto border-t border-border">
+    <motion.section
+      id="Experience"
+      ref={ref}
+      variants={fadeUp}
+      initial="hidden"
+      animate={isInView ? "visible" : "hidden"}
+      className="py-12 sm:py-16 px-4 sm:px-6 max-w-6xl mx-auto border-t border-border"
+    >
       <SectionLabel>02 / Experience</SectionLabel>
       <div className="divide-y divide-border">
         {EXPERIENCE.map((job, i) => {
           const isOpen = expanded === i;
           const isPromo = job.isPromotion === true;
           const headerLabel = isPromo
-            ? `${job.roles[1].role} → ${job.roles[0].role}`
+            ? `${(job as PromotionJob).roles[1].role} → ${(job as PromotionJob).roles[0].role}`
             : (job as SimpleJob).role;
 
           return (
             <div key={i} className="group">
               <button
-                className="w-full py-6 flex items-start md:items-center justify-between gap-4 text-left"
+                className="w-full py-5 sm:py-6 flex items-start justify-between gap-3 text-left"
                 onClick={() => setExpanded(isOpen ? null : i)}
                 aria-expanded={isOpen}
               >
-                <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-8 flex-1">
-                  <span className="font-mono text-xs text-muted-foreground w-44 shrink-0">{job.period}</span>
-                  <div>
-                    <span className="text-foreground font-medium" style={{ fontFamily: "'Archivo', sans-serif" }}>
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <span className="font-mono text-[10px] sm:text-xs text-muted-foreground">{job.period}</span>
+                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                    <span className="text-foreground font-medium text-sm sm:text-base" style={{ fontFamily: "'Archivo', sans-serif" }}>
                       {headerLabel}
                     </span>
-                    <span className="text-muted-foreground mx-2 hidden md:inline">—</span>
-                    <span className="font-mono text-xs text-primary block md:inline mt-0.5 md:mt-0">{job.company}</span>
+                    <span className="font-mono text-xs text-primary">{job.company}</span>
                   </div>
                 </div>
-                <span className="text-muted-foreground group-hover:text-primary transition-colors shrink-0">
-                  {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                </span>
+                <motion.span
+                  animate={{ rotate: isOpen ? 180 : 0 }}
+                  transition={{ duration: 0.25, ease: "easeInOut" }}
+                  className="text-muted-foreground group-hover:text-primary transition-colors shrink-0 mt-1"
+                >
+                  <ChevronDown size={15} />
+                </motion.span>
               </button>
 
-              {isOpen && !isPromo && (
-                <ul className="pb-6 pl-0 md:pl-52 space-y-2">
-                  {(job as SimpleJob).highlights.map((h, j) => (
-                    <li key={j} className="flex items-start gap-3 font-mono text-xs text-muted-foreground">
-                      <span className="text-primary mt-0.5 shrink-0">→</span>
-                      {h}
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {isOpen && isPromo && (
-                <div className="pb-6 pl-0 md:pl-52 space-y-6">
-                  {job.roles.map((r, j) => (
-                    <div key={j} className="relative pl-5 border-l border-border">
-                      <div className="flex flex-wrap items-center gap-3 mb-2">
-                        <span className="font-mono text-xs text-foreground font-medium">{r.role}</span>
-                        {/* Promoted badge only on the newer (index 0) role */}
-                        {j === 0 && (
-                          <span className="font-mono text-[10px] tracking-widest uppercase px-2 py-0.5 border border-primary text-primary">
-                            Promoted
-                          </span>
-                        )}
-                        <span className="font-mono text-[10px] text-muted-foreground">{r.period}</span>
-                        <span className="font-mono text-[10px] text-primary">· {r.client}</span>
-                      </div>
-                      <ul className="space-y-1.5">
-                        {r.highlights.map((h, k) => (
-                          <li key={k} className="flex items-start gap-3 font-mono text-xs text-muted-foreground">
+              {/* Smooth height accordion */}
+              <AnimatePresence initial={false}>
+                {isOpen && (
+                  <motion.div
+                    key="content"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                    style={{ overflow: "hidden" }}
+                  >
+                    {!isPromo && (
+                      <ul className="pb-5 sm:pb-6 space-y-2">
+                        {(job as SimpleJob).highlights.map((h, j) => (
+                          <motion.li
+                            key={j}
+                            initial={{ opacity: 0, x: -8 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: j * 0.06, duration: 0.28 }}
+                            className="flex items-start gap-2.5 font-mono text-xs text-muted-foreground"
+                          >
                             <span className="text-primary mt-0.5 shrink-0">→</span>
                             {h}
-                          </li>
+                          </motion.li>
                         ))}
                       </ul>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    )}
+
+                    {isPromo && (
+                      <div className="pb-5 sm:pb-6 space-y-5">
+                        {(job as PromotionJob).roles.map((r, j) => (
+                          <motion.div
+                            key={j}
+                            initial={{ opacity: 0, x: -8 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: j * 0.1, duration: 0.3 }}
+                            className="relative pl-4 border-l-2 border-border"
+                          >
+                            <div className="flex flex-wrap items-center gap-2 mb-2">
+                              <span className="font-mono text-xs text-foreground font-medium">{r.role}</span>
+                              {j === 0 && (
+                                <span className="font-mono text-[9px] sm:text-[10px] tracking-widest uppercase px-2 py-0.5 border border-primary text-primary">
+                                  Promoted
+                                </span>
+                              )}
+                              <span className="font-mono text-[10px] text-muted-foreground">{r.period}</span>
+                              <span className="font-mono text-[10px] text-primary">· {r.client}</span>
+                            </div>
+                            <ul className="space-y-1.5">
+                              {r.highlights.map((h, k) => (
+                                <li key={k} className="flex items-start gap-2.5 font-mono text-xs text-muted-foreground">
+                                  <span className="text-primary mt-0.5 shrink-0">→</span>
+                                  {h}
+                                </li>
+                              ))}
+                            </ul>
+                          </motion.div>
+                        ))}
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           );
         })}
       </div>
-    </section>
+    </motion.section>
   );
 }
 
+// --- Projects ---
+
 function Projects() {
+  const { ref, isInView } = useScrollInView(0.1);
+
   return (
-    <section id="Projects" className="py-16 px-6 max-w-6xl mx-auto border-t border-border">
+    <motion.section
+      id="Projects"
+      ref={ref}
+      variants={fadeUp}
+      initial="hidden"
+      animate={isInView ? "visible" : "hidden"}
+      className="py-12 sm:py-16 px-4 sm:px-6 max-w-6xl mx-auto border-t border-border"
+    >
       <SectionLabel>03 / Projects</SectionLabel>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-border border border-border">
+      <motion.div
+        variants={staggerContainer}
+        initial="hidden"
+        animate={isInView ? "visible" : "hidden"}
+        className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-border border border-border"
+      >
         {PROJECTS.map((proj, i) => (
-          <div key={i} className="bg-card p-7 flex flex-col gap-4 hover:bg-secondary transition-colors group">
+          <motion.div
+            key={i}
+            variants={fadeUp}
+            whileHover={{ backgroundColor: "var(--secondary)" }}
+            transition={{ duration: 0.2 }}
+            className="bg-card p-5 sm:p-7 flex flex-col gap-3 sm:gap-4 group"
+          >
             <div className="flex items-start justify-between gap-2">
-              <h3
-                className="text-foreground font-medium text-lg leading-snug"
-                style={{ fontFamily: "'Archivo', sans-serif" }}
-              >
+              <h3 className="text-foreground font-medium text-base sm:text-lg leading-snug" style={{ fontFamily: "'Archivo', sans-serif" }}>
                 {proj.title}
               </h3>
               {proj.link && (
-                <a
+                <motion.a
                   href="https://github.com/RohithV16"
                   target="_blank"
                   rel="noreferrer"
-                  className="text-muted-foreground group-hover:text-primary transition-colors shrink-0 mt-1"
+                  whileHover={{ scale: 1.2, color: "var(--primary)" }}
+                  className="text-muted-foreground shrink-0 mt-0.5"
                 >
-                  <ExternalLink size={14} />
-                </a>
+                  <ExternalLink size={13} />
+                </motion.a>
               )}
             </div>
-            <p className="font-mono text-xs text-muted-foreground leading-relaxed flex-1">
-              {proj.description}
-            </p>
+            <p className="font-mono text-xs text-muted-foreground leading-relaxed flex-1">{proj.description}</p>
             <div className="flex flex-wrap gap-1.5">
               {proj.tags.map((tag) => (
                 <span key={tag} className="font-mono text-[10px] px-2 py-0.5 border border-border text-muted-foreground">
@@ -377,77 +658,110 @@ function Projects() {
                 </span>
               ))}
             </div>
-          </div>
+          </motion.div>
         ))}
-      </div>
-    </section>
+      </motion.div>
+    </motion.section>
   );
 }
 
+// --- Certifications ---
+
 function Certifications() {
+  const { ref, isInView } = useScrollInView(0.1);
+
   const levelColor: Record<string, string> = {
     MASTER: "text-primary border-primary",
     EXPERT: "text-amber-400 border-amber-400",
     PRO: "text-emerald-400 border-emerald-400",
     CERT: "text-muted-foreground border-border",
   };
+
   return (
-    <section id="Certifications" className="py-16 px-6 max-w-6xl mx-auto border-t border-border">
+    <motion.section
+      id="Certifications"
+      ref={ref}
+      variants={fadeUp}
+      initial="hidden"
+      animate={isInView ? "visible" : "hidden"}
+      className="py-12 sm:py-16 px-4 sm:px-6 max-w-6xl mx-auto border-t border-border"
+    >
       <SectionLabel>04 / Certifications</SectionLabel>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-px bg-border border border-border">
+      <motion.div
+        variants={staggerContainer}
+        initial="hidden"
+        animate={isInView ? "visible" : "hidden"}
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px bg-border border border-border"
+      >
         {CERTS.map((cert, i) => (
-          <div key={i} className="bg-card p-6 flex flex-col gap-3 hover:bg-secondary transition-colors">
-            <div className={`font-mono text-[10px] tracking-[0.2em] uppercase border self-start px-2 py-0.5 ${levelColor[cert.level]}`}>
+          <motion.div
+            key={i}
+            variants={fadeUp}
+            whileHover={{ backgroundColor: "var(--secondary)" }}
+            transition={{ duration: 0.2 }}
+            className="bg-card p-5 sm:p-6 flex flex-col gap-3"
+          >
+            <div className={`font-mono text-[9px] sm:text-[10px] tracking-[0.2em] uppercase border self-start px-2 py-0.5 ${levelColor[cert.level]}`}>
               {cert.level}
             </div>
-            <Award size={18} className="text-muted-foreground" />
+            <Award size={16} className="text-muted-foreground" />
             <div>
-              <p className="text-foreground text-sm font-medium" style={{ fontFamily: "'Archivo', sans-serif" }}>
-                {cert.title}
-              </p>
+              <p className="text-foreground text-sm font-medium" style={{ fontFamily: "'Archivo', sans-serif" }}>{cert.title}</p>
               <p className="font-mono text-xs text-muted-foreground mt-1">{cert.issuer}</p>
             </div>
-          </div>
+          </motion.div>
         ))}
-      </div>
-    </section>
+      </motion.div>
+    </motion.section>
   );
 }
 
+// --- Education ---
+
 function Education() {
+  const { ref, isInView } = useScrollInView();
+
   return (
-    <section className="py-16 px-6 max-w-6xl mx-auto border-t border-border">
+    <motion.section
+      ref={ref}
+      variants={fadeUp}
+      initial="hidden"
+      animate={isInView ? "visible" : "hidden"}
+      className="py-12 sm:py-16 px-4 sm:px-6 max-w-6xl mx-auto border-t border-border"
+    >
       <SectionLabel>05 / Education</SectionLabel>
-      <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-8">
-        <span className="font-mono text-xs text-muted-foreground w-44 shrink-0">2017 — 2021</span>
-        <div>
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 md:gap-8">
+        <span className="font-mono text-xs text-muted-foreground sm:w-40 shrink-0">2017 — 2021</span>
+        <div className="flex-1">
           <p className="text-foreground font-medium" style={{ fontFamily: "'Archivo', sans-serif" }}>
             Bachelor of Mechanical Engineering
           </p>
           <p className="font-mono text-xs text-primary mt-0.5">R.M.K Engineering College, Chennai</p>
         </div>
-        <div className="md:ml-auto font-mono text-xs text-muted-foreground border border-border px-3 py-1 self-start md:self-auto">
+        <div className="font-mono text-xs text-muted-foreground border border-border px-3 py-1 self-start sm:self-auto shrink-0">
           GPA 8.0 / 10
         </div>
       </div>
-    </section>
+    </motion.section>
   );
 }
 
+// --- Footer ---
+
 function Footer() {
   return (
-    <footer className="border-t border-border py-10 px-6">
-      <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+    <footer className="border-t border-border py-8 sm:py-10 px-4 sm:px-6">
+      <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
         <span className="font-mono text-xs text-muted-foreground">© 2025 Rohith Venati</span>
-        <div className="flex items-center gap-6">
-          <a href="mailto:rohithv16@gmail.com" className="font-mono text-xs text-muted-foreground hover:text-primary transition-colors">
+        <div className="flex items-center gap-5 sm:gap-6">
+          <a href="mailto:rohithv16@gmail.com" className="font-mono text-xs text-muted-foreground hover:text-primary transition-colors hidden sm:inline">
             rohithv16@gmail.com
           </a>
           <a href="https://linkedin.com/in/rohithvenati1605" target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-primary transition-colors">
-            <Linkedin size={14} />
+            <Linkedin size={15} />
           </a>
           <a href="https://github.com/RohithV16" target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-primary transition-colors">
-            <Github size={14} />
+            <Github size={15} />
           </a>
         </div>
       </div>
@@ -455,16 +769,15 @@ function Footer() {
   );
 }
 
+// --- App ---
+
 export default function App() {
   const [active, setActive] = useState("About");
   const scrollingTo = useRef<string | null>(null);
 
-  // Scroll spy — updates active nav based on scroll position
   useEffect(() => {
     const handler = () => {
-      // Suppress spy while a programmatic scroll is in flight
       if (scrollingTo.current) return;
-
       const offset = NAVBAR_HEIGHT + 32;
       for (const id of [...NAV_ITEMS].reverse()) {
         const el = document.getElementById(id);
@@ -475,7 +788,6 @@ export default function App() {
       }
       setActive("About");
     };
-
     window.addEventListener("scroll", handler, { passive: true });
     return () => window.removeEventListener("scroll", handler);
   }, []);
@@ -483,14 +795,11 @@ export default function App() {
   const scrollTo = (id: string) => {
     setActive(id);
     scrollingTo.current = id;
-
     const el = document.getElementById(id);
     if (el) {
       const top = el.getBoundingClientRect().top + window.scrollY - NAVBAR_HEIGHT - 16;
       window.scrollTo({ top, behavior: "smooth" });
     }
-
-    // Clear the lock after the smooth scroll settles (~700ms)
     setTimeout(() => { scrollingTo.current = null; }, 700);
   };
 
