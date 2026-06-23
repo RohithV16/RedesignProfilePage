@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence, useInView, useMotionValue, useTransform, animate } from "motion/react";
-import { Mail, Phone, Linkedin, Github, MapPin, ExternalLink, Award, ChevronDown, ChevronUp, Menu, X } from "lucide-react";
+import { Mail, Phone, Linkedin, Github, MapPin, ExternalLink, Award, ChevronDown, Menu, X } from "lucide-react";
 
 const NAV_ITEMS = ["About", "Experience", "Projects", "Certifications"];
 
@@ -9,6 +9,14 @@ const SKILLS = [
   "Dispatcher", "CDN", "Akamai", "React", "JUnit",
   "Dynamic Media", "Cloud Manager", "AI / ML", "RAG", "Vector Search",
   "SSR", "Coveo", "Adobe Analytics", "CI/CD", "Repository Restructuring",
+];
+
+// Skills shown in the marquee ticker (hero strip) — concise labels
+const TICKER_SKILLS = [
+  "AEM Sites", "AEMaaCS", "Java", "OSGi", "Dispatcher",
+  "CDN", "Akamai", "React", "JUnit", "Dynamic Media",
+  "Cloud Manager", "RAG", "Vector Search", "Coveo", "Adobe Analytics",
+  "CI/CD", "Sling Models", "SSR", "AI / ML",
 ];
 
 // --- Types ---
@@ -127,6 +135,30 @@ const CERTS = [
 
 const NAVBAR_HEIGHT = 56;
 
+// --- Favicon injection ---
+
+function useFavicon() {
+  useEffect(() => {
+    // RV monogram favicon: black square, orange "RV" in Archivo Black style
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+      <rect width="32" height="32" fill="#0c0c0c"/>
+      <rect x="0" y="28" width="32" height="2" fill="#ff4500"/>
+      <text x="4" y="23" font-family="Arial Black, sans-serif" font-size="16" font-weight="900" fill="#f0ede6" letter-spacing="-1">RV</text>
+      <rect x="4" y="26" width="24" height="1.5" fill="#ff4500" opacity="0.6"/>
+    </svg>`;
+    const encoded = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+    let link = document.querySelector<HTMLLinkElement>("link[rel*='icon']");
+    if (!link) {
+      link = document.createElement("link");
+      link.rel = "icon";
+      document.head.appendChild(link);
+    }
+    link.type = "image/svg+xml";
+    link.href = encoded;
+    document.title = "Rohith Venati — Senior AEM Developer";
+  }, []);
+}
+
 // --- Animation variants ---
 
 const fadeUp = {
@@ -152,7 +184,6 @@ function useScrollInView(threshold = 0.15) {
   return { ref, isInView };
 }
 
-// Animated counter hook
 function useCounter(target: number, inView: boolean, duration = 1.4) {
   const motionVal = useMotionValue(0);
   const rounded = useTransform(motionVal, (v) => {
@@ -170,7 +201,31 @@ function useCounter(target: number, inView: boolean, duration = 1.4) {
   return rounded;
 }
 
-// --- NavBar with sliding indicator ---
+// --- Skills Ticker (infinite marquee) ---
+
+function SkillsTicker() {
+  // Duplicate list so the loop looks seamless
+  const items = [...TICKER_SKILLS, ...TICKER_SKILLS];
+
+  return (
+    <div className="w-full border-y border-border overflow-hidden py-3 bg-card select-none">
+      <motion.div
+        className="flex gap-8 whitespace-nowrap w-max"
+        animate={{ x: ["0%", "-50%"] }}
+        transition={{ duration: 28, repeat: Infinity, ease: "linear" }}
+      >
+        {items.map((skill, i) => (
+          <span key={i} className="flex items-center gap-3 font-mono text-[11px] tracking-[0.18em] uppercase text-muted-foreground">
+            <span className="text-primary text-base leading-none select-none">·</span>
+            {skill}
+          </span>
+        ))}
+      </motion.div>
+    </div>
+  );
+}
+
+// --- NavBar ---
 
 function NavBar({ active, onNav }: { active: string; onNav: (s: string) => void }) {
   const [open, setOpen] = useState(false);
@@ -212,13 +267,11 @@ function NavBar({ active, onNav }: { active: string; onNav: (s: string) => void 
             transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
             className="hidden md:flex items-center gap-6 lg:gap-8 relative"
           >
-            {/* Sliding underline indicator */}
             <motion.div
               className="absolute bottom-[-1px] h-[2px] bg-primary"
               animate={{ left: indicatorStyle.left, width: indicatorStyle.width }}
               transition={{ type: "spring", stiffness: 380, damping: 32 }}
             />
-
             {NAV_ITEMS.map((item) => (
               <button
                 key={item}
@@ -313,24 +366,6 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-// --- Scroll section wrapper ---
-
-function ScrollSection({ id, className, children }: { id?: string; className?: string; children: React.ReactNode }) {
-  const { ref, isInView } = useScrollInView();
-  return (
-    <motion.section
-      id={id}
-      ref={ref}
-      variants={fadeUp}
-      initial="hidden"
-      animate={isInView ? "visible" : "hidden"}
-      className={className}
-    >
-      {children}
-    </motion.section>
-  );
-}
-
 // --- Stat counter cell ---
 
 function StatCell({ val, label, inView }: { val: string; label: string; inView: boolean }) {
@@ -358,72 +393,52 @@ function Hero() {
   const statsRef = useRef<HTMLDivElement>(null);
   const statsInView = useInView(statsRef, { once: true, amount: 0.5 });
 
-  const heroItems = [
-    { delay: 0, el: (
-      <motion.p
-        key="eyebrow"
-        variants={fadeUp}
-        className="font-mono text-[10px] sm:text-xs tracking-[0.25em] sm:tracking-[0.3em] uppercase text-muted-foreground mb-3 sm:mb-4"
-      >
-        Senior AEM Developer — Adobe Certified Master
-      </motion.p>
-    )},
-    { delay: 0.1, el: (
-      <motion.h1
-        key="name"
-        variants={fadeUp}
-        className="font-black text-foreground leading-none tracking-tight mb-4 sm:mb-6"
-        style={{ fontFamily: "'Archivo Black', sans-serif", fontSize: "clamp(2.6rem, 12vw, 7rem)" }}
-      >
-        Rohith<br />
-        <span className="text-primary">Venati</span>
-      </motion.h1>
-    )},
-    { delay: 0.18, el: (
-      <motion.p
-        key="bio"
-        variants={fadeUp}
-        className="text-muted-foreground max-w-xl leading-relaxed text-sm sm:text-base"
-        style={{ fontFamily: "'Archivo', sans-serif" }}
-      >
-        Four years building enterprise content management systems at Adobe, Merkle, and Infosys.
-        Specializing in AEMaaCS architecture, cloud migration, and performance-critical backend engineering.
-      </motion.p>
-    )},
-    { delay: 0.26, el: (
-      <motion.div
-        key="links"
-        variants={fadeUp}
-        className="flex flex-wrap items-center gap-x-5 gap-y-3 mt-6 sm:mt-8"
-      >
-        <a href="mailto:rohithv16@gmail.com" className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-primary transition-colors">
-          <Mail size={13} /> rohithv16@gmail.com
-        </a>
-        <a href="tel:+916300331842" className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-primary transition-colors">
-          <Phone size={13} /> +91 63003 31842
-        </a>
-        <a href="https://linkedin.com/in/rohithvenati1605" target="_blank" rel="noreferrer" className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-primary transition-colors">
-          <Linkedin size={13} /> LinkedIn
-        </a>
-        <a href="https://github.com/RohithV16" target="_blank" rel="noreferrer" className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-primary transition-colors">
-          <Github size={13} /> GitHub
-        </a>
-        <span className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
-          <MapPin size={13} /> Chennai, India
-        </span>
-      </motion.div>
-    )},
-  ];
-
   return (
-    <section id="hero" className="pt-24 sm:pt-28 md:pt-32 pb-12 sm:pb-16 md:pb-20 px-4 sm:px-6 max-w-6xl mx-auto">
+    <section id="hero" className="pt-24 sm:pt-28 md:pt-32 pb-10 sm:pb-14 px-4 sm:px-6 max-w-6xl mx-auto">
       <div className="flex flex-col md:grid md:grid-cols-[1fr_auto] gap-8 md:gap-10 md:items-end">
-        <motion.div
-          variants={staggerContainer}
-          initial="hidden"
-          animate="visible"
-        >
-          {heroItems.map(({ el }) => el)}
+        <motion.div variants={staggerContainer} initial="hidden" animate="visible">
+          <motion.p
+            variants={fadeUp}
+            className="font-mono text-[10px] sm:text-xs tracking-[0.25em] sm:tracking-[0.3em] uppercase text-muted-foreground mb-3 sm:mb-4"
+          >
+            Senior AEM Developer — Adobe Certified Master
+          </motion.p>
+          <motion.h1
+            variants={fadeUp}
+            className="font-black text-foreground leading-none tracking-tight mb-4 sm:mb-6"
+            style={{ fontFamily: "'Archivo Black', sans-serif", fontSize: "clamp(2.6rem, 12vw, 7rem)" }}
+          >
+            Rohith<br />
+            <span className="text-primary">Venati</span>
+          </motion.h1>
+          <motion.p
+            variants={fadeUp}
+            className="text-muted-foreground max-w-xl leading-relaxed text-sm sm:text-base"
+            style={{ fontFamily: "'Archivo', sans-serif" }}
+          >
+            Four years building enterprise content management systems at Adobe, Merkle, and Infosys.
+            Specializing in AEMaaCS architecture, cloud migration, and performance-critical backend engineering.
+          </motion.p>
+          <motion.div
+            variants={fadeUp}
+            className="flex flex-wrap items-center gap-x-5 gap-y-3 mt-6 sm:mt-8"
+          >
+            <a href="mailto:rohithv16@gmail.com" className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-primary transition-colors">
+              <Mail size={13} /> rohithv16@gmail.com
+            </a>
+            <a href="tel:+916300331842" className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-primary transition-colors">
+              <Phone size={13} /> +91 63003 31842
+            </a>
+            <a href="https://linkedin.com/in/rohithvenati1605" target="_blank" rel="noreferrer" className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-primary transition-colors">
+              <Linkedin size={13} /> LinkedIn
+            </a>
+            <a href="https://github.com/RohithV16" target="_blank" rel="noreferrer" className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-primary transition-colors">
+              <Github size={13} /> GitHub
+            </a>
+            <span className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
+              <MapPin size={13} /> Chennai, India
+            </span>
+          </motion.div>
         </motion.div>
 
         {/* Stat grid */}
@@ -448,7 +463,7 @@ function Hero() {
   );
 }
 
-// --- Skills ---
+// --- Skills section ---
 
 function About() {
   const { ref, isInView } = useScrollInView(0.1);
@@ -457,9 +472,9 @@ function About() {
     <motion.section
       id="About"
       ref={ref}
+      variants={fadeUp}
       initial="hidden"
       animate={isInView ? "visible" : "hidden"}
-      variants={fadeUp}
       className="py-12 sm:py-16 px-4 sm:px-6 max-w-6xl mx-auto border-t border-border"
     >
       <SectionLabel>01 / Skills</SectionLabel>
@@ -534,7 +549,6 @@ function Experience() {
                 </motion.span>
               </button>
 
-              {/* Smooth height accordion */}
               <AnimatePresence initial={false}>
                 {isOpen && (
                   <motion.div
@@ -561,7 +575,6 @@ function Experience() {
                         ))}
                       </ul>
                     )}
-
                     {isPromo && (
                       <div className="pb-5 sm:pb-6 space-y-5">
                         {(job as PromotionJob).roles.map((r, j) => (
@@ -669,7 +682,6 @@ function Projects() {
 
 function Certifications() {
   const { ref, isInView } = useScrollInView(0.1);
-
   const levelColor: Record<string, string> = {
     MASTER: "text-primary border-primary",
     EXPERT: "text-amber-400 border-amber-400",
@@ -775,6 +787,8 @@ export default function App() {
   const [active, setActive] = useState("About");
   const scrollingTo = useRef<string | null>(null);
 
+  useFavicon();
+
   useEffect(() => {
     const handler = () => {
       if (scrollingTo.current) return;
@@ -808,6 +822,8 @@ export default function App() {
       <NavBar active={active} onNav={scrollTo} />
       <main>
         <Hero />
+        {/* Skills ticker strip — lives between hero and sections */}
+        <SkillsTicker />
         <About />
         <Experience />
         <Projects />
